@@ -7,7 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Models\Source2\" />
+    <Compile Remove="Models\Source2\**" />
+    <EmbeddedResource Remove="Models\Source2\**" />
+    <None Remove="Models\Source2\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Models\Warehouse\" />
     <Folder Include="Contexts\" />
   </ItemGroup>

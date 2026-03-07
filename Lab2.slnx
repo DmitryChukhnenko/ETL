@@ -1,1 +1,6 @@
-<Solution />
+<Solution>
+  <Project Path="App/App.csproj" />
+  <Project Path="Data/Data.csproj" />
+  <Project Path="EtlEngine/EtlEngine.csproj" />
+  <Project Path="Seeder/Seeder.csproj" />
+</Solution>
