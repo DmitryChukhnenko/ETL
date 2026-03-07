@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_ETL" targetNamespace="http://bpmn.io/schema/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.13.1">
+  <bpmn:process id="Process_ETL_Lab2" name="ETL Data Integration Process" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Запуск процесса ETL">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Gateway_Parallel_Extract" />
+    <bpmn:parallelGateway id="Gateway_Parallel_Extract">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Extract1</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Extract2</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="Task_Extract_Source1" name="Извлечение данных из DB1 (Проекты)">
+      <bpmn:incoming>Flow_Extract1</bpmn:incoming>
+      <bpmn:outgoing>Flow_Join1</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_Extract_Source2" name="Извлечение данных из DB2 (HR)">
+      <bpmn:incoming>Flow_Extract2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Join2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="Gateway_Join_Extract">
+      <bpmn:incoming>Flow_Join1</bpmn:incoming>
+      <bpmn:incoming>Flow_Join2</bpmn:incoming>
+      <bpmn:outgoing>Flow_Transform</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:sequenceFlow id="Flow_Extract1" sourceRef="Gateway_Parallel_Extract" targetRef="Task_Extract_Source1" />
+    <bpmn:sequenceFlow id="Flow_Extract2" sourceRef="Gateway_Parallel_Extract" targetRef="Task_Extract_Source2" />
+    <bpmn:sequenceFlow id="Flow_Join1" sourceRef="Task_Extract_Source1" targetRef="Gateway_Join_Extract" />
+    <bpmn:sequenceFlow id="Flow_Join2" sourceRef="Task_Extract_Source2" targetRef="Gateway_Join_Extract" />
+    <bpmn:task id="Task_Normalize_FIO" name="Нормализация ФИО (Trim, LowerCase, RegExp)">
+      <bpmn:incoming>Flow_Transform</bpmn:incoming>
+      <bpmn:outgoing>Flow_Merge</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_Transform" sourceRef="Gateway_Join_Extract" targetRef="Task_Normalize_FIO" />
+    <bpmn:task id="Task_Merge_Data" name="Объединение записей по нормализованному ФИО">
+      <bpmn:incoming>Flow_Merge</bpmn:incoming>
+      <bpmn:outgoing>Flow_Calc</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_Merge" sourceRef="Task_Normalize_FIO" targetRef="Task_Merge_Data" />
+    <bpmn:task id="Task_Calculate_Income" name="Расчет TotalIncome (Salary + Bonus)">
+      <bpmn:incoming>Flow_Calc</bpmn:incoming>
+      <bpmn:outgoing>Flow_Load</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_Calc" sourceRef="Task_Merge_Data" targetRef="Task_Calculate_Income" />
+    <bpmn:serviceTask id="Task_Load_DWH" name="Запись данных в Хранилище (DWH)">
+      <bpmn:incoming>Flow_Load</bpmn:incoming>
+      <bpmn:outgoing>Flow_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_Load" sourceRef="Task_Calculate_Income" targetRef="Task_Load_DWH" />
+    <bpmn:endEvent id="EndEvent_1" name="Завершение ETL">
+      <bpmn:incoming>Flow_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_End" sourceRef="Task_Load_DWH" targetRef="EndEvent_1" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_ETL_Lab2">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="152" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="128" y="225" width="86" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1_di" bpmnElement="Gateway_Parallel_Extract" isMarkerVisible="true">
+        <dc:Bounds x="245" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_2_di" bpmnElement="Task_Extract_Source2">
+        <dc:Bounds x="350" y="230" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_2_di" bpmnElement="Gateway_Join_Extract" isMarkerVisible="true">
+        <dc:Bounds x="505" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_3_di" bpmnElement="Task_Normalize_FIO">
+        <dc:Bounds x="610" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_4_di" bpmnElement="Task_Merge_Data">
+        <dc:Bounds x="760" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_5_di" bpmnElement="Task_Calculate_Income">
+        <dc:Bounds x="910" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_6_di" bpmnElement="Task_Load_DWH">
+        <dc:Bounds x="1060" y="160" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_1_di" bpmnElement="EndEvent_1">
+        <dc:Bounds x="1222" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1196" y="218" width="88" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_1_di" bpmnElement="Task_Extract_Source1">
+        <dc:Bounds x="350" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1_di" bpmnElement="Flow_1">
+        <di:waypoint x="188" y="200" />
+        <di:waypoint x="245" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_E1_di" bpmnElement="Flow_Extract1">
+        <di:waypoint x="270" y="175" />
+        <di:waypoint x="270" y="120" />
+        <di:waypoint x="350" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_E2_di" bpmnElement="Flow_Extract2">
+        <di:waypoint x="270" y="225" />
+        <di:waypoint x="270" y="270" />
+        <di:waypoint x="350" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_J1_di" bpmnElement="Flow_Join1">
+        <di:waypoint x="450" y="120" />
+        <di:waypoint x="530" y="120" />
+        <di:waypoint x="530" y="175" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_J2_di" bpmnElement="Flow_Join2">
+        <di:waypoint x="450" y="270" />
+        <di:waypoint x="530" y="270" />
+        <di:waypoint x="530" y="225" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_T_di" bpmnElement="Flow_Transform">
+        <di:waypoint x="555" y="200" />
+        <di:waypoint x="610" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_M_di" bpmnElement="Flow_Merge">
+        <di:waypoint x="710" y="200" />
+        <di:waypoint x="760" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_C_di" bpmnElement="Flow_Calc">
+        <di:waypoint x="860" y="200" />
+        <di:waypoint x="910" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_L_di" bpmnElement="Flow_Load">
+        <di:waypoint x="1010" y="200" />
+        <di:waypoint x="1060" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_End_di" bpmnElement="Flow_End">
+        <di:waypoint x="1160" y="200" />
+        <di:waypoint x="1222" y="200" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
