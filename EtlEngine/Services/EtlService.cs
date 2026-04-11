@@ -11,10 +11,7 @@ public class EtlService
     private readonly HrDbContext _hrCtx;
     private readonly WarehouseDbContext _dwhCtx;
 
-    public EtlService(
-        ProjectsDbContext projectsCtx,
-        HrDbContext hrCtx,
-        WarehouseDbContext dwhCtx)
+    public EtlService(ProjectsDbContext projectsCtx, HrDbContext hrCtx, WarehouseDbContext dwhCtx)
     {
         _projectsCtx = projectsCtx;
         _hrCtx = hrCtx;
@@ -23,109 +20,104 @@ public class EtlService
 
     public async Task RunIntegrationAsync()
     {
-        Console.WriteLine("Начало этапа Extract...");
+        Console.WriteLine("ETL: Извлечение данных из источников...");
 
-        // Извлекаем данные из первого источника (Проекты)
         var source1Employees = await _projectsCtx.Employees
             .Include(e => e.Assignments)
             .ThenInclude(a => a.Project)
             .ToListAsync();
 
-        // Извлекаем данные из второго источника (HR)
         var source2Staff = await _hrCtx.Staff
             .Include(s => s.Finances)
             .ToListAsync();
 
-        Console.WriteLine("Начало этапа Transform & Load...");
-
-        // Очищаем целевые таблицы перед загрузкой (опционально для тестов)
+        // Очистка DWH перед заливкой
         _dwhCtx.FactProjectExperiences.RemoveRange(_dwhCtx.FactProjectExperiences);
         _dwhCtx.DimEmployees.RemoveRange(_dwhCtx.DimEmployees);
         await _dwhCtx.SaveChangesAsync();
 
+        int matchedCount = 0;
+
         foreach (var staff in source2Staff)
         {
-            // 1. Нормализация имени из HR базы для поиска
-            string normalizedHrName = NormalizeFio(staff.PersonName);
+            string hrName = NormalizeFio(staff.PersonName);
 
-            // 2. Поиск соответствия в базе проектов
+            // Ищем совпадение. Теперь используем Fuzzy Matching (перекрытие имен)
             var matchingEmployee = source1Employees.FirstOrDefault(e =>
-                NormalizeFio(e.FullName) == normalizedHrName);
+                IsSamePerson(hrName, NormalizeFio(e.FullName)));
 
-            // 3. Создание записи в измерении сотрудников (DimEmployee)
             var dimEmployee = new DimEmployee
             {
                 OriginalSourceId = staff.Id,
-                UnifiedFullName = CapitalizeName(normalizedHrName), // Делаем красиво: "Иванов Иван Иванович"
+                UnifiedFullName = CapitalizeName(staff.PersonName),
                 Resume = staff.ResumeText,
                 TotalIncome = staff.Finances.Sum(f => f.Salary + f.Bonus)
             };
 
             _dwhCtx.DimEmployees.Add(dimEmployee);
-            await _dwhCtx.SaveChangesAsync(); // Сохраняем, чтобы получить Identity ID (EmployeeKey)
+            await _dwhCtx.SaveChangesAsync();
 
-            // 4. Если нашли совпадение по проектам, переносим опыт в таблицу фактов
             if (matchingEmployee != null)
             {
+                matchedCount++;
                 foreach (var assignment in matchingEmployee.Assignments)
                 {
-                    var factExperience = new FactProjectExperience
+                    _dwhCtx.FactProjectExperiences.Add(new FactProjectExperience
                     {
                         EmployeeKey = dimEmployee.EmployeeKey,
                         ProjectName = assignment.Project.Title,
                         Role = assignment.RoleName,
                         TechStack = ExtractTechStack(assignment.Project.Description)
-                    };
-                    _dwhCtx.FactProjectExperiences.Add(factExperience);
+                    });
                 }
             }
         }
 
         await _dwhCtx.SaveChangesAsync();
-        Console.WriteLine("Процесс ETL успешно завершен.");
+        Console.WriteLine($"ETL завершен. Всего сотрудников: {source2Staff.Count}, Совпадений найдено: {matchedCount}");
     }
 
     /// <summary>
-    /// Ключевой метод трансформации: нормализует ФИО.
-    /// Убирает точки, лишние пробелы, приводит к нижнему регистру и сортирует слова.
-    /// Это позволяет сопоставить "Иванов Иван" и "Иван И. Иванов".
+    /// Проверяет, являются ли строки одним и тем же человеком.
+    /// Если в одной строке "Иванов Иван", а в другой "Иванов Иван Иванович", 
+    /// то все слова из короткой строки должны присутствовать в длинной.
     /// </summary>
+    private bool IsSamePerson(string name1, string name2)
+    {
+        if (string.IsNullOrEmpty(name1) || string.IsNullOrEmpty(name2)) return false;
+
+        var parts1 = name1.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var parts2 = name2.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        // Проверяем, что все слова из более короткого варианта есть в более длинном
+        var smaller = parts1.Length <= parts2.Length ? parts1 : parts2;
+        var larger = parts1.Length > parts2.Length ? parts1 : parts2;
+
+        return smaller.All(s => larger.Contains(s));
+    }
+
     private string NormalizeFio(string rawName)
     {
         if (string.IsNullOrWhiteSpace(rawName)) return string.Empty;
 
-        // Убираем точки и спецсимволы, переводим в нижний регистр
-        string clean = Regex.Replace(rawName.ToLower(), @"[\.\,]", " ");
+        // Убираем точки (для инициалов) и приводим к нижнему регистру
+        string clean = Regex.Replace(rawName.ToLower(), @"[\.]", " ");
 
-        // Разбиваем на слова, убираем короткие части (инициалы без точек)
-        var words = clean.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                         .Select(w => w.Trim())
-                         .Where(w => w.Length > 1)
-                         .OrderBy(w => w) // Сортировка важна для сравнения при разном порядке слов
-                         .ToList();
-
-        return string.Join(" ", words);
+        return string.Join(" ", clean.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                                     .Select(w => w.Trim())
+                                     .Where(w => w.Length > 1)); // Игнорируем одиночные буквы без точек
     }
 
-    /// <summary>
-    /// Приводит нормализованное имя к формату заголовка (Иван Иванов).
-    /// </summary>
     private string CapitalizeName(string name)
     {
         if (string.IsNullOrEmpty(name)) return name;
-        return string.Join(" ", name.Split(' ').Select(s =>
-            char.ToUpper(s[0]) + s.Substring(1)));
+        return string.Join(" ", name.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(s => char.ToUpper(s[0]) + s.Substring(1).ToLower()));
     }
 
-    /// <summary>
-    /// Простая логика извлечения стека из описания проекта.
-    /// </summary>
     private string ExtractTechStack(string description)
     {
-        if (description.Contains("Stack:"))
-        {
-            return description.Split("Stack:").Last().Trim();
-        }
-        return "Не указан";
+        if (string.IsNullOrEmpty(description)) return "Не указан";
+        return description.Contains("Stack:") ? description.Split("Stack:").Last().Trim() : "Общий стек";
     }
 }

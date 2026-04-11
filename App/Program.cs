@@ -47,6 +47,7 @@ internal class Program
         {
             // Шаг 1: Наполнение баз-источников тестовыми данными (Seeding)
             Console.WriteLine("\n[1/3] Наполнение источников тестовыми данными...");
+            await DbSeeder.ClearAllDataAsync(projectsCtx, hrCtx, dwhCtx);
             await DbSeeder.SeedAsync(projectsCtx, hrCtx);
 
             // Шаг 2: Запуск ETL сервиса
