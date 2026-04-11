@@ -82,11 +82,16 @@ CREATE DATABASE data_warehouse;
 
 ### 3. Применение миграций
 
-Выполните команды в Package Manager Console для создания таблиц:
+Выполните команды в консоли в корне проекта для создания таблиц:
 ```
-Update-Database -Context ProjectsDbContext
-Update-Database -Context HrDbContext
-Update-Database -Context WarehouseDbContext
+dotnet ef migrations add InitialProjects --context ProjectDbContext --project Data --startup-project App
+dotnet ef database update --context ProjectDbContext --project Data --startup-project App
+
+dotnet ef migrations add InitialHr --context HrDbContext --project Data --startup-project App
+dotnet ef database update --context HrDbContext --project Data --startup-project App
+
+dotnet ef migrations add InitialWarehouse --context WarehouseDbContext --project Data --startup-project App
+dotnet ef database update --context WarehouseDbContext --project Data --startup-project App
 ```
 ### 4. Запуск ETL
 
